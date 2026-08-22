@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "restaurantLabel": "Restaurant",
+    "dashboard": "Dashboard",
+    "ingredients": "Ingredients",
+    "recipes": "Recipes",
+    "menuItems": "Menu Items",
+    "profitLoss": "Profit & Loss",
+    "reports": "Reports",
+    "settings": "Settings",
+    "home": "Home",
+    "menu": "Menu",
+    "profit": "Profit",
+    "more": "More"
+  },
+  "dashboard": {
+    "monthlySales": "Monthly Sales",
+    "netProfit": "Net Profit",
+    "foodCostPercent": "Food Cost %",
+    "laborCostPercent": "Labor Cost %",
+    "primeCostPercent": "Prime Cost %",
+    "needsAttention": "Needs Attention",
+    "topProfitItems": "Top Profit Items",
+    "nothingNeedsAttention": "Nothing needs attention this month.",
+    "noSalesRecorded": "Record monthly units sold on your menu items to see this.",
+    "vsPreviousMonth": "vs previous month",
+    "margin": "margin",
+    "plates": "plates",
+    "profit": "profit",
+    "needsAttentionLabel": "Needs Attention"
+  },
+  "foodCostStatus": {
+    "good": "Good",
+    "warning": "Warning",
+    "high": "High"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "restaurantLabel": "Restaurante",
+    "dashboard": "Panel",
+    "ingredients": "Ingredientes",
+    "recipes": "Recetas",
+    "menuItems": "Menú",
+    "profitLoss": "Pérdidas y Ganancias",
+    "reports": "Informes",
+    "settings": "Configuración",
+    "home": "Inicio",
+    "menu": "Menú",
+    "profit": "Ganancia",
+    "more": "Más"
+  },
+  "dashboard": {
+    "monthlySales": "Ventas mensuales",
+    "netProfit": "Ganancia neta",
+    "foodCostPercent": "% Costo de alimentos",
+    "laborCostPercent": "% Costo laboral",
+    "primeCostPercent": "% Costo primo",
+    "needsAttention": "Requiere atención",
+    "topProfitItems": "Platos más rentables",
+    "nothingNeedsAttention": "Nada requiere atención este mes.",
+    "noSalesRecorded": "Registra las unidades vendidas de tus platos para ver esto.",
+    "vsPreviousMonth": "vs. mes anterior",
+    "margin": "margen",
+    "plates": "platos",
+    "profit": "ganancia",
+    "needsAttentionLabel": "Requiere atención"
+  },
+  "foodCostStatus": {
+    "good": "Bien",
+    "warning": "Aviso",
+    "high": "Alto"
+  }
+}

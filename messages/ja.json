@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "restaurantLabel": "レストラン",
+    "dashboard": "ダッシュボード",
+    "ingredients": "食材",
+    "recipes": "レシピ",
+    "menuItems": "メニュー",
+    "profitLoss": "損益計算書",
+    "reports": "レポート",
+    "settings": "設定",
+    "home": "ホーム",
+    "menu": "メニュー",
+    "profit": "利益",
+    "more": "その他"
+  },
+  "dashboard": {
+    "monthlySales": "月間売上",
+    "netProfit": "純利益",
+    "foodCostPercent": "フードコスト率",
+    "laborCostPercent": "人件費率",
+    "primeCostPercent": "プライムコスト率",
+    "needsAttention": "要確認",
+    "topProfitItems": "利益上位メニュー",
+    "nothingNeedsAttention": "今月、特に確認すべき項目はありません。",
+    "noSalesRecorded": "メニューの月間販売数を記録すると、ここに表示されます。",
+    "vsPreviousMonth": "前月比",
+    "margin": "マージン",
+    "plates": "皿",
+    "profit": "利益",
+    "needsAttentionLabel": "要確認"
+  },
+  "foodCostStatus": {
+    "good": "良好",
+    "warning": "注意",
+    "high": "高い"
+  }
+}

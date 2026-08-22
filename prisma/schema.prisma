@@ -1,0 +1,348 @@
+// Restaurant Profit & Food Cost Management — data model
+// Money: integer minor units (cents). Percentages/yields: integer basis points (1% = 100bp).
+// See lib/calculations for all math performed on these values.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Identity & Tenancy ----------
+// User -> OrganizationMember -> Organization -> Restaurant -> (everything else)
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships OrganizationMember[]
+}
+
+enum OrgRole {
+  OWNER
+  MANAGER
+  CHEF
+  ACCOUNTANT
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members     OrganizationMember[]
+  restaurants Restaurant[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  role           OrgRole  @default(OWNER)
+  createdAt      DateTime @default(now())
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+enum MeasurementSystem {
+  US
+  METRIC
+}
+
+model Restaurant {
+  id             String   @id @default(cuid())
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  settings         RestaurantSettings?
+  vendors          Vendor[]
+  ingredientCategories IngredientCategory[]
+  ingredients      Ingredient[]
+  recipeCategories RecipeCategory[]
+  recipes          Recipe[]
+  menuCategories   MenuCategory[]
+  menuItems        MenuItem[]
+  financialMonths  FinancialMonth[]
+}
+
+model RestaurantSettings {
+  id                    String            @id @default(cuid())
+  restaurantId          String            @unique
+  restaurant            Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  language              String            @default("en") // en | ja | es — UI language only
+  currencyCode          String            @default("USD") // ISO 4217 — independent of language
+  measurementSystem     MeasurementSystem @default(US)     // independent of language/currency
+  targetFoodCostBp      Int               @default(3000)   // basis points of a percent; 3000 = 30.00%
+  foodCostWarningBp     Int               @default(300)    // +3.00pp over target => Warning
+  foodCostHighBp        Int               @default(700)    // +7.00pp over target => High
+
+  updatedAt             DateTime          @updatedAt
+}
+
+// ---------- Ingredients ----------
+
+model Vendor {
+  id               String            @id @default(cuid())
+  name             String
+  restaurantId     String
+  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredients      Ingredient[]
+  expenseLineItems ExpenseLineItem[]
+
+  @@index([restaurantId])
+}
+
+model IngredientCategory {
+  id           String       @id @default(cuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredients  Ingredient[]
+
+  @@index([restaurantId])
+}
+
+enum Unit {
+  // weight
+  LB
+  OZ
+  KG
+  G
+  // volume
+  GALLON
+  QUART
+  PINT
+  CUP
+  FL_OZ
+  L
+  ML
+  // count
+  EACH
+  CASE
+  PACK
+}
+
+model Ingredient {
+  id                   String    @id @default(cuid())
+  name                 String
+  restaurantId         String
+  restaurant           Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId           String?
+  category             IngredientCategory? @relation(fields: [categoryId], references: [id])
+  vendorId             String?
+  vendor               Vendor?   @relation(fields: [vendorId], references: [id])
+
+  purchasePriceCents   Int        // price paid for one purchase unit
+  purchaseQty          Float      // e.g. 10 (as in "10 lb")
+  purchaseUnit         Unit
+  usableQty            Float      // quantity actually usable after prep (same unit dimension as purchaseUnit)
+  yieldBp              Int        // basis points of a percent; 8200 = 82.00%
+  // A per-unit rate, not a money total — intentionally NOT rounded to whole cents.
+  // See the comment on usableCostPerUnit() in lib/calculations/ingredient.ts.
+  costPerUsableUnitCents Float
+
+  lastUpdatedAt        DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+
+  priceHistory         IngredientPriceHistory[]
+  recipeComponents     RecipeComponent[]
+
+  @@index([restaurantId])
+}
+
+model IngredientPriceHistory {
+  id                     String     @id @default(cuid())
+  ingredientId           String
+  ingredient             Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  purchasePriceCents     Int
+  purchaseQty            Float
+  purchaseUnit           Unit
+  yieldBp                Int
+  costPerUsableUnitCents Float
+  effectiveDate          DateTime   @default(now())
+
+  @@index([ingredientId, effectiveDate])
+}
+
+// ---------- Recipes (with sub-recipe support) ----------
+
+model RecipeCategory {
+  id           String     @id @default(cuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  recipes      Recipe[]
+
+  @@index([restaurantId])
+}
+
+model Recipe {
+  id             String     @id @default(cuid())
+  name           String
+  restaurantId   String
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       RecipeCategory? @relation(fields: [categoryId], references: [id])
+
+  yieldQty       Float      // total yield produced, e.g. 1000 (grams)
+  yieldUnit      Unit
+  portionSize    Float?     // optional: size of one portion in yieldUnit
+  portionCount   Float?     // optional: number of portions this recipe yields
+
+  isSubRecipe    Boolean    @default(false) // true = usable as a component of other recipes
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  components     RecipeComponent[] // this recipe's ingredients/sub-recipes
+  usedInRecipes  RecipeComponent[] @relation("SubRecipeUsage") // where this recipe is used as a component
+  menuItems      MenuItem[]
+
+  @@index([restaurantId])
+}
+
+// A recipe component references EITHER an Ingredient OR another Recipe (sub-recipe), never both.
+model RecipeComponent {
+  id                String     @id @default(cuid())
+  recipeId          String
+  recipe            Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  ingredientId      String?
+  ingredient        Ingredient? @relation(fields: [ingredientId], references: [id])
+
+  componentRecipeId String?
+  componentRecipe   Recipe?    @relation("SubRecipeUsage", fields: [componentRecipeId], references: [id])
+
+  quantity          Float
+  unit              Unit
+  sortOrder         Int        @default(0)
+
+  @@index([recipeId])
+  @@index([ingredientId])
+  @@index([componentRecipeId])
+}
+
+// ---------- Menu Items ----------
+
+model MenuCategory {
+  id           String     @id @default(cuid())
+  name         String
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
+
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id               String     @id @default(cuid())
+  name             String
+  restaurantId     String
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId       String?
+  category         MenuCategory? @relation(fields: [categoryId], references: [id])
+  recipeId         String?
+  recipe           Recipe?    @relation(fields: [recipeId], references: [id])
+
+  sellingPriceCents Int
+  active            Boolean   @default(true)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  monthlyStats      MenuItemMonthlyStat[]
+
+  @@index([restaurantId])
+}
+
+// Snapshot of cost/price/units-sold for one menu item in one financial month.
+// Snapshotting (not live recalculation) is what keeps past months' reports
+// stable when today's ingredient prices change later — see section 30.
+model MenuItemMonthlyStat {
+  id                    String   @id @default(cuid())
+  menuItemId            String
+  menuItem              MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  financialMonthId      String
+  financialMonth        FinancialMonth @relation(fields: [financialMonthId], references: [id], onDelete: Cascade)
+
+  unitsSold             Int
+  sellingPriceCentsSnap Int      // selling price at time of entry
+  foodCostCentsSnap     Int      // recipe cost per portion at time of entry
+
+  @@unique([menuItemId, financialMonthId])
+  @@index([financialMonthId])
+}
+
+// ---------- Restaurant P&L / Monthly History ----------
+
+model FinancialMonth {
+  id                  String     @id @default(cuid())
+  restaurantId        String
+  restaurant          Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  year                Int
+  month               Int        // 1-12
+
+  // Revenue and labor aren't vendor-billed, so they stay as direct entries.
+  // Everything vendor-billed (rent, utilities, insurance, ...) lives in
+  // expenseLineItems instead — see ExpenseCategory / ExpenseLineItem below.
+  revenueCents           Int @default(0)
+  foodCostCents          Int @default(0)
+  laborCostCents         Int @default(0)
+
+  isClosed            Boolean    @default(false) // closed months are immutable except by explicit reopen
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  menuItemStats       MenuItemMonthlyStat[]
+  expenseLineItems    ExpenseLineItem[]
+
+  @@unique([restaurantId, year, month])
+  @@index([restaurantId])
+}
+
+enum ExpenseCategory {
+  RENT
+  UTILITIES
+  CREDIT_CARD_FEES
+  DELIVERY_FEES
+  INSURANCE
+  MARKETING
+  REPAIRS
+  OTHER
+}
+
+// One vendor bill within a month, rolling up into its ExpenseCategory's total
+// on the P&L statement. Vendor is optional — not every expense has a clean
+// vendor (e.g. a one-off "Other" charge) — but tagging it is how a restaurant
+// answers "how much am I actually spending with this supplier?"
+model ExpenseLineItem {
+  id               String          @id @default(cuid())
+  financialMonthId String
+  financialMonth   FinancialMonth  @relation(fields: [financialMonthId], references: [id], onDelete: Cascade)
+  category         ExpenseCategory
+  vendorId         String?
+  vendor           Vendor?         @relation(fields: [vendorId], references: [id])
+  description      String?
+  amountCents      Int
+  createdAt        DateTime        @default(now())
+
+  @@index([financialMonthId])
+  @@index([vendorId])
+}
