@@ -24,15 +24,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<!-- Dev-only: allows plain http:// to the Mac's LAN IP (see capacitor.config.ts).
-		     Remove this before any App Store build, which should point at a real HTTPS URL. -->
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Used during development to load the app from a server running on your computer.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Used to photograph receipts and price tags so their text can be scanned automatically.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
