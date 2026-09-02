@@ -21,19 +21,29 @@ export async function aggregateExpensesByCategory(financialMonthId: string): Pro
   return totals;
 }
 
+/** Sums this month's labor line items — labor is itemized the same way vendor expenses are. */
+export async function totalLaborCostCents(financialMonthId: string): Promise<number> {
+  const result = await db.laborCostLineItem.aggregate({
+    where: { financialMonthId },
+    _sum: { amountCents: true },
+  });
+  return result._sum.amountCents ?? 0;
+}
+
 /**
  * Builds the exact input shape calculateProfitAndLoss expects, merging the month's
- * direct fields (revenue/food cost/labor) with its aggregated vendor expense totals.
- * The calculation engine itself is untouched by the vendor-tracking change.
+ * direct fields (revenue/food cost) with its aggregated labor and vendor expense
+ * totals. The calculation engine itself is untouched by the itemization changes.
  */
 export function buildFinancialMonthInput(
-  month: { revenueCents: number; foodCostCents: number; laborCostCents: number },
+  month: { revenueCents: number; foodCostCents: number },
+  laborCostCents: number,
   categoryTotals: Record<ExpenseCategory, number>,
 ): FinancialMonthInput {
   return {
     revenueCents: month.revenueCents,
     foodCostCents: month.foodCostCents,
-    laborCostCents: month.laborCostCents,
+    laborCostCents,
     rentCents: categoryTotals.RENT,
     utilitiesCents: categoryTotals.UTILITIES,
     creditCardFeesCents: categoryTotals.CREDIT_CARD_FEES,
@@ -50,8 +60,10 @@ export async function getFinancialMonthPLInput(month: {
   id: string;
   revenueCents: number;
   foodCostCents: number;
-  laborCostCents: number;
 }): Promise<FinancialMonthInput> {
-  const totals = await aggregateExpensesByCategory(month.id);
-  return buildFinancialMonthInput(month, totals);
+  const [categoryTotals, laborCostCents] = await Promise.all([
+    aggregateExpensesByCategory(month.id),
+    totalLaborCostCents(month.id),
+  ]);
+  return buildFinancialMonthInput(month, laborCostCents, categoryTotals);
 }

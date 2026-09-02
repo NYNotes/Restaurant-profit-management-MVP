@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ---------- Identity & Tenancy ----------
@@ -72,6 +72,8 @@ model Restaurant {
   vendors          Vendor[]
   ingredientCategories IngredientCategory[]
   ingredients      Ingredient[]
+  ingredientPresets IngredientPreset[]
+  ingredientPresetCategories IngredientPresetCategory[]
   recipeCategories RecipeCategory[]
   recipes          Recipe[]
   menuCategories   MenuCategory[]
@@ -115,6 +117,39 @@ model IngredientCategory {
   ingredients  Ingredient[]
 
   @@index([restaurantId])
+}
+
+// A restaurant's own category, added alongside the built-in ones (see
+// lib/ingredientPresets.ts) when none of those fit — e.g. "Frozen" or a
+// house-specific grouping. Deleting one cascades to its presets below.
+model IngredientPresetCategory {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  createdAt    DateTime           @default(now())
+  presets      IngredientPreset[]
+
+  @@index([restaurantId])
+}
+
+// A restaurant's own additions to the built-in "quick pick" ingredient list on the
+// Add Ingredient form (see lib/ingredientPresets.ts for the built-in items). Lets an
+// owner build up their own frequently-used names instead of retyping them every time.
+// Belongs to exactly one of: a built-in category (categoryKey) or a custom one
+// (customCategoryId) — never both.
+model IngredientPreset {
+  id               String                    @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryKey      String?                   // one of INGREDIENT_PRESET_CATEGORIES' keys, for a built-in category
+  customCategoryId String?
+  customCategory   IngredientPresetCategory? @relation(fields: [customCategoryId], references: [id], onDelete: Cascade)
+  name             String
+  createdAt        DateTime                  @default(now())
+
+  @@index([restaurantId, categoryKey])
+  @@index([customCategoryId])
 }
 
 enum Unit {
@@ -299,12 +334,12 @@ model FinancialMonth {
   year                Int
   month               Int        // 1-12
 
-  // Revenue and labor aren't vendor-billed, so they stay as direct entries.
-  // Everything vendor-billed (rent, utilities, insurance, ...) lives in
-  // expenseLineItems instead — see ExpenseCategory / ExpenseLineItem below.
+  // Revenue and food cost aren't vendor-billed, so they stay as direct entries.
+  // Labor is itemized (see LaborCostLineItem below), same as everything vendor-billed
+  // (rent, utilities, insurance, ...) lives in expenseLineItems — see ExpenseCategory /
+  // ExpenseLineItem below.
   revenueCents           Int @default(0)
   foodCostCents          Int @default(0)
-  laborCostCents         Int @default(0)
 
   isClosed            Boolean    @default(false) // closed months are immutable except by explicit reopen
   createdAt           DateTime   @default(now())
@@ -312,9 +347,33 @@ model FinancialMonth {
 
   menuItemStats       MenuItemMonthlyStat[]
   expenseLineItems    ExpenseLineItem[]
+  laborCostLineItems  LaborCostLineItem[]
 
   @@unique([restaurantId, year, month])
   @@index([restaurantId])
+}
+
+enum LaborRole {
+  KITCHEN
+  FRONT_OF_HOUSE
+  MANAGEMENT
+  DELIVERY
+  OTHER
+}
+
+// One staff/role pay entry within a month, rolling up into that month's total labor
+// cost on the P&L statement. employeeName is optional — a restaurant might track
+// "Kitchen: $4,200" as one line, or itemize it per person.
+model LaborCostLineItem {
+  id               String         @id @default(cuid())
+  financialMonthId String
+  financialMonth   FinancialMonth @relation(fields: [financialMonthId], references: [id], onDelete: Cascade)
+  role             LaborRole
+  employeeName     String?
+  amountCents      Int
+  createdAt        DateTime       @default(now())
+
+  @@index([financialMonthId])
 }
 
 enum ExpenseCategory {

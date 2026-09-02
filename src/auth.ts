@@ -6,6 +6,12 @@ import { db } from "@/lib/db";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  // Auth.js only trusts the request's Host header by default in dev, or on
+  // recognized platforms (Vercel, Cloudflare Pages). Without this, a production
+  // build served over a LAN IP (e.g. for the iOS app shell) throws UntrustedHost
+  // and every sign-in silently fails. Safe here because this app is only ever
+  // reached through our own reverse-proxy/hosting in real deployments.
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {

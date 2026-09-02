@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 import type { SettingsActionState } from "@/app/(app)/r/[restaurantId]/settings/actions";
 
 const initialState: SettingsActionState = {};
@@ -21,12 +22,14 @@ export function SettingsForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const t = useTranslations("settings");
+  const tc = useTranslations("common");
 
   return (
     <form action={formAction} className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <label htmlFor="restaurantName" className="block text-sm font-medium text-slate-700">
-          Restaurant name
+          {t("restaurantName")}
         </label>
         <input
           id="restaurantName"
@@ -38,10 +41,10 @@ export function SettingsForm({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="language" className="block text-sm font-medium text-slate-700">
-            Language
+            {t("language")}
           </label>
           <select
             id="language"
@@ -56,7 +59,7 @@ export function SettingsForm({
         </div>
         <div>
           <label htmlFor="currencyCode" className="block text-sm font-medium text-slate-700">
-            Currency
+            {t("currency")}
           </label>
           <select
             id="currencyCode"
@@ -71,7 +74,7 @@ export function SettingsForm({
         </div>
         <div>
           <label htmlFor="measurementSystem" className="block text-sm font-medium text-slate-700">
-            Measurement
+            {t("measurement")}
           </label>
           <select
             id="measurementSystem"
@@ -79,16 +82,16 @@ export function SettingsForm({
             defaultValue={defaults.measurementSystem}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           >
-            <option value="US">US (lb, oz, gal)</option>
-            <option value="METRIC">Metric (kg, g, L)</option>
+            <option value="US">{t("measurementUS")}</option>
+            <option value="METRIC">{t("measurementMetric")}</option>
           </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="targetFoodCostPercent" className="block text-sm font-medium text-slate-700">
-            Target food cost %
+            {t("targetFoodCostPercent")}
           </label>
           <input
             id="targetFoodCostPercent"
@@ -104,7 +107,7 @@ export function SettingsForm({
         </div>
         <div>
           <label htmlFor="foodCostWarningPercent" className="block text-sm font-medium text-slate-700">
-            Warning threshold (pts over target)
+            {t("warningThreshold")}
           </label>
           <input
             id="foodCostWarningPercent"
@@ -120,7 +123,7 @@ export function SettingsForm({
         </div>
         <div>
           <label htmlFor="foodCostHighPercent" className="block text-sm font-medium text-slate-700">
-            High threshold (pts over target)
+            {t("highThreshold")}
           </label>
           <input
             id="foodCostHighPercent"
@@ -143,7 +146,7 @@ export function SettingsForm({
         disabled={pending}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
       >
-        {pending ? "Saving…" : "Save settings"}
+        {pending ? tc("saving") : t("saveSettings")}
       </button>
     </form>
   );

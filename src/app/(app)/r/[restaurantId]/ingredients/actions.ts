@@ -2,11 +2,18 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { requireRestaurantAccess } from "@/lib/auth/session";
 import { usableCostPerUnit, usableQty } from "@/lib/calculations/ingredient";
 import { unitDimension } from "@/lib/calculations/units";
 import { UNIT_LABEL } from "@/lib/units-display";
+import { INGREDIENT_PRESET_CATEGORIES } from "@/lib/ingredientPresets";
+
+async function restaurantLocale(restaurantId: string): Promise<string> {
+  const settings = await db.restaurantSettings.findUnique({ where: { restaurantId }, select: { language: true } });
+  return settings?.language ?? "en";
+}
 const UNIT_VALUES = [
   "LB",
   "OZ",
@@ -120,7 +127,10 @@ export async function updateIngredientAction(
   await requireRestaurantAccess(restaurantId);
 
   const existing = await db.ingredient.findFirst({ where: { id: ingredientId, restaurantId } });
-  if (!existing) return { error: "Ingredient not found" };
+  if (!existing) {
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "ingredients" });
+    return { error: t("notFound") };
+  }
 
   const parsed = ingredientSchema.safeParse({
     name: formData.get("name"),
@@ -158,9 +168,8 @@ export async function updateIngredientAction(
     });
     if (usedInRecipes.length > 0) {
       const names = usedInRecipes.map((c) => c.recipe.name).join(", ");
-      return {
-        error: `Can't switch to ${UNIT_LABEL[purchaseUnit]} — used in: ${names}, which measure it in a different unit type. Remove it from those recipes first.`,
-      };
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "ingredients" });
+      return { error: t("cantSwitchUnit", { unit: UNIT_LABEL[purchaseUnit], names }) };
     }
   }
 
@@ -215,9 +224,71 @@ export async function deleteIngredientAction(
   });
   if (usedInRecipes.length > 0) {
     const names = usedInRecipes.map((c) => c.recipe.name).join(", ");
-    return { error: `Can't delete — used in: ${names}. Remove it from those recipes first.` };
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "ingredients" });
+    return { error: t("cantDeleteUsedIn", { names }) };
   }
 
   await db.ingredient.delete({ where: { id: ingredientId } });
   redirect(`/r/${restaurantId}/ingredients`);
+}
+
+const presetCategorySchema = z.enum(INGREDIENT_PRESET_CATEGORIES.map((c) => c.key) as [string, ...string[]]);
+
+export type PresetCategoryRef = { kind: "builtin"; key: string } | { kind: "custom"; id: string };
+
+export interface IngredientPresetResult {
+  id: string;
+  categoryKey: string | null;
+  customCategoryId: string | null;
+  name: string;
+}
+
+/** Called directly from the client (not bound to a <form>) — see IngredientPresetPicker. */
+export async function addIngredientPresetAction(
+  restaurantId: string,
+  category: PresetCategoryRef,
+  name: string,
+): Promise<IngredientPresetResult | null> {
+  await requireRestaurantAccess(restaurantId);
+
+  const trimmedName = name.trim();
+  if (!trimmedName) return null;
+
+  if (category.kind === "builtin") {
+    const parsedCategory = presetCategorySchema.safeParse(category.key);
+    if (!parsedCategory.success) return null;
+    const created = await db.ingredientPreset.create({
+      data: { restaurantId, categoryKey: parsedCategory.data, name: trimmedName },
+    });
+    return { id: created.id, categoryKey: created.categoryKey, customCategoryId: null, name: created.name };
+  }
+
+  const customCategory = await db.ingredientPresetCategory.findFirst({ where: { id: category.id, restaurantId } });
+  if (!customCategory) return null;
+  const created = await db.ingredientPreset.create({
+    data: { restaurantId, customCategoryId: customCategory.id, name: trimmedName },
+  });
+  return { id: created.id, categoryKey: null, customCategoryId: created.customCategoryId, name: created.name };
+}
+
+export async function removeIngredientPresetAction(restaurantId: string, presetId: string): Promise<void> {
+  await requireRestaurantAccess(restaurantId);
+  await db.ingredientPreset.deleteMany({ where: { id: presetId, restaurantId } });
+}
+
+export async function addIngredientPresetCategoryAction(
+  restaurantId: string,
+  name: string,
+): Promise<{ id: string; name: string } | null> {
+  await requireRestaurantAccess(restaurantId);
+  const trimmedName = name.trim();
+  if (!trimmedName) return null;
+  const created = await db.ingredientPresetCategory.create({ data: { restaurantId, name: trimmedName } });
+  return { id: created.id, name: created.name };
+}
+
+export async function removeIngredientPresetCategoryAction(restaurantId: string, categoryId: string): Promise<void> {
+  await requireRestaurantAccess(restaurantId);
+  // onDelete: Cascade on IngredientPreset.customCategory drops its presets too.
+  await db.ingredientPresetCategory.deleteMany({ where: { id: categoryId, restaurantId } });
 }

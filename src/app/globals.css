@@ -24,3 +24,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Inside the native app shell (WKWebView), long-pressing a link or button triggers
+   Safari's link-preview/context-menu callout, and/or selects its text with drag
+   handles — both read as a bug in a "native" app, not a webpage. Suppress both on
+   interactive elements only, so normal text (prices, names, etc.) stays
+   selectable/copyable. */
+a,
+button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

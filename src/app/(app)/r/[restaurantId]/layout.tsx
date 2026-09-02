@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getMessages } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
 import { requireRestaurantAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/AppShell";
-import { DESKTOP_NAV, MOBILE_NAV } from "@/components/nav-config";
+import { DESKTOP_NAV, MOBILE_NAV, MOBILE_MORE_NAV } from "@/components/nav-config";
 
 export default async function RestaurantLayout({
   children,
@@ -19,22 +20,29 @@ export default async function RestaurantLayout({
   if (!restaurant) notFound();
 
   const locale = restaurant.settings?.language ?? "en";
-  const t = await getTranslations({ locale, namespace: "nav" });
+  const [t, messages] = await Promise.all([
+    getTranslations({ locale, namespace: "nav" }),
+    getMessages({ locale }),
+  ]);
 
   const navLabels: Record<string, string> = {};
-  for (const item of [...DESKTOP_NAV, ...MOBILE_NAV]) {
+  for (const item of [...DESKTOP_NAV, ...MOBILE_NAV, ...MOBILE_MORE_NAV]) {
     navLabels[item.labelKey] = t(item.labelKey);
   }
 
   return (
-    <AppShell
-      restaurantId={restaurantId}
-      restaurantName={restaurant.name}
-      restaurantLabel={t("restaurantLabel")}
-      userName={user.name ?? user.email ?? ""}
-      navLabels={navLabels}
-    >
-      {children}
-    </AppShell>
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      <AppShell
+        restaurantId={restaurantId}
+        restaurantName={restaurant.name}
+        restaurantLabel={t("restaurantLabel")}
+        userName={user.name ?? user.email ?? ""}
+        navLabels={navLabels}
+        moreLabel={t("more")}
+        switchRestaurantLabel={t("switchRestaurant")}
+      >
+        {children}
+      </AppShell>
+    </NextIntlClientProvider>
   );
 }

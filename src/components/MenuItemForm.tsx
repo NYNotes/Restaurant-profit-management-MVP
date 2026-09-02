@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 import type { MenuItemActionState } from "@/app/(app)/r/[restaurantId]/menu-items/actions";
 
 const initialState: MenuItemActionState = {};
@@ -22,12 +23,14 @@ export function MenuItemForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const t = useTranslations("menuItems");
+  const tc = useTranslations("common");
 
   return (
     <form action={formAction} className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-slate-700">
-          Menu item name
+          {t("formName")}
         </label>
         <input
           id="name"
@@ -42,7 +45,7 @@ export function MenuItemForm({
 
       <div>
         <label htmlFor="categoryName" className="block text-sm font-medium text-slate-700">
-          Category
+          {tc("category")}
         </label>
         <input
           id="categoryName"
@@ -54,10 +57,10 @@ export function MenuItemForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="sellingPrice" className="block text-sm font-medium text-slate-700">
-            Selling price
+            {t("formSellingPrice")}
           </label>
           <input
             id="sellingPrice"
@@ -73,7 +76,7 @@ export function MenuItemForm({
         </div>
         <div>
           <label htmlFor="recipeId" className="block text-sm font-medium text-slate-700">
-            Recipe
+            {t("formRecipe")}
           </label>
           <select
             id="recipeId"
@@ -81,7 +84,7 @@ export function MenuItemForm({
             defaultValue={defaults?.recipeId ?? ""}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           >
-            <option value="">No recipe yet</option>
+            <option value="">{t("formNoRecipeOption")}</option>
             {recipes.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -98,7 +101,7 @@ export function MenuItemForm({
         disabled={pending}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
       >
-        {pending ? "Saving…" : submitLabel}
+        {pending ? tc("saving") : submitLabel}
       </button>
     </form>
   );

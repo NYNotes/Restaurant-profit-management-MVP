@@ -2,10 +2,16 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { requireRestaurantAccess } from "@/lib/auth/session";
 import { computeRecipeCost } from "@/lib/recipeCosting";
 import { getOrCreateCurrentFinancialMonth } from "@/lib/financialMonth";
+
+async function restaurantLocale(restaurantId: string): Promise<string> {
+  const settings = await db.restaurantSettings.findUnique({ where: { restaurantId }, select: { language: true } });
+  return settings?.language ?? "en";
+}
 
 function dollarsToCents(value: string): number {
   return Math.round(Number(value) * 100);
@@ -51,7 +57,10 @@ export async function createMenuItemAction(
 
   if (recipeId) {
     const recipe = await db.recipe.findFirst({ where: { id: recipeId, restaurantId } });
-    if (!recipe) return { error: "Recipe not found" };
+    if (!recipe) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "menuItems" });
+      return { error: t("recipeNotFound") };
+    }
   }
 
   const categoryId = await findOrCreateMenuCategory(restaurantId, categoryName);
@@ -78,7 +87,10 @@ export async function updateMenuItemAction(
   await requireRestaurantAccess(restaurantId);
 
   const existing = await db.menuItem.findFirst({ where: { id: menuItemId, restaurantId } });
-  if (!existing) return { error: "Menu item not found" };
+  if (!existing) {
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "menuItems" });
+    return { error: t("notFound") };
+  }
 
   const parsed = menuItemSchema.safeParse({
     name: formData.get("name"),
@@ -94,7 +106,10 @@ export async function updateMenuItemAction(
 
   if (recipeId) {
     const recipe = await db.recipe.findFirst({ where: { id: recipeId, restaurantId } });
-    if (!recipe) return { error: "Recipe not found" };
+    if (!recipe) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "menuItems" });
+      return { error: t("recipeNotFound") };
+    }
   }
 
   const categoryId = await findOrCreateMenuCategory(restaurantId, categoryName);
@@ -143,7 +158,10 @@ export async function recordUnitsSoldAction(
   await requireRestaurantAccess(restaurantId);
 
   const menuItem = await db.menuItem.findFirst({ where: { id: menuItemId, restaurantId } });
-  if (!menuItem) return { error: "Menu item not found" };
+  if (!menuItem) {
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "menuItems" });
+    return { error: t("notFound") };
+  }
 
   const parsed = unitsSoldSchema.safeParse({ unitsSold: formData.get("unitsSold") });
   if (!parsed.success) {

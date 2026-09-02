@@ -31,7 +31,7 @@ export default function NewRestaurantPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="language" className="block text-sm font-medium text-slate-700">
                 Language
@@ -64,7 +64,7 @@ export default function NewRestaurantPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="measurementSystem" className="block text-sm font-medium text-slate-700">
                 Measurement

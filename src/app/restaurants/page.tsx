@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -8,7 +9,7 @@ export default async function RestaurantsPage() {
 
   const memberships = await db.organizationMember.findMany({
     where: { userId: user.id },
-    include: { organization: { include: { restaurants: true } } },
+    include: { organization: { include: { restaurants: { include: { settings: true } } } } },
   });
 
   const restaurants = memberships.flatMap((m) => m.organization.restaurants);
@@ -21,9 +22,12 @@ export default async function RestaurantsPage() {
     redirect(`/r/${restaurants[0].id}/dashboard`);
   }
 
+  const locale = restaurants[0]?.settings?.language ?? "en";
+  const t = await getTranslations({ locale, namespace: "restaurants" });
+
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
-      <h1 className="text-2xl font-semibold text-slate-900">Your restaurants</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">{t("title")}</h1>
       <ul className="mt-6 space-y-3">
         {restaurants.map((r) => (
           <li key={r.id}>
@@ -36,6 +40,12 @@ export default async function RestaurantsPage() {
           </li>
         ))}
       </ul>
+      <Link
+        href="/restaurants/new"
+        className="mt-4 block rounded-xl border border-dashed border-slate-300 px-4 py-3 text-center text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-white"
+      >
+        {t("addRestaurant")}
+      </Link>
     </div>
   );
 }

@@ -2,11 +2,17 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { requireRestaurantAccess } from "@/lib/auth/session";
 import { hasCircularDependency } from "@/lib/calculations/recipe";
 import { unitDimension } from "@/lib/calculations/units";
 import { UNIT_LABEL } from "@/lib/units-display";
+
+async function restaurantLocale(restaurantId: string): Promise<string> {
+  const settings = await db.restaurantSettings.findUnique({ where: { restaurantId }, select: { language: true } });
+  return settings?.language ?? "en";
+}
 
 const UNIT_VALUES = [
   "LB",
@@ -103,7 +109,10 @@ export async function updateRecipeAction(
   await requireRestaurantAccess(restaurantId);
 
   const existing = await db.recipe.findFirst({ where: { id: recipeId, restaurantId } });
-  if (!existing) return { error: "Recipe not found" };
+  if (!existing) {
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+    return { error: t("notFound") };
+  }
 
   const parsed = recipeSchema.safeParse({
     name: formData.get("name"),
@@ -132,9 +141,8 @@ export async function updateRecipeAction(
     });
     if (usedAsSubRecipe.length > 0) {
       const names = usedAsSubRecipe.map((c) => c.recipe.name).join(", ");
-      return {
-        error: `Can't switch to ${UNIT_LABEL[yieldUnit]} — used as a sub-recipe in: ${names}, which measure it in a different unit type. Remove it from those first.`,
-      };
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+      return { error: t("cantSwitchUnit", { unit: UNIT_LABEL[yieldUnit], names }) };
     }
   }
 
@@ -180,7 +188,8 @@ export async function deleteRecipeAction(
 
   const blockers = [...usedAsSubRecipe.map((c) => c.recipe.name), ...usedByMenuItems.map((m) => m.name)];
   if (blockers.length > 0) {
-    return { error: `Can't delete — used in: ${blockers.join(", ")}. Remove it from those first.` };
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+    return { error: t("cantDeleteUsedIn", { names: blockers.join(", ") }) };
   }
 
   await db.recipe.delete({ where: { id: recipeId } });
@@ -220,14 +229,22 @@ export async function addComponentAction(
 
   if (type === "ingredient") {
     const ingredient = await db.ingredient.findFirst({ where: { id: refId, restaurantId } });
-    if (!ingredient) return { error: "Ingredient not found" };
+    if (!ingredient) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+      return { error: t("ingredientNotFound") };
+    }
 
     // Cost conversion between components and their target unit only works within the
     // same dimension (weight/volume/count) — see convertUnits. Reject a mismatch here,
     // at write time, instead of letting the recipe page crash the next time it's opened.
     if (unitDimension(unit) !== unitDimension(ingredient.purchaseUnit)) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
       return {
-        error: `Can't use ${UNIT_LABEL[unit]} for ${ingredient.name} — it's purchased in ${UNIT_LABEL[ingredient.purchaseUnit]}. Choose a compatible unit.`,
+        error: t("incompatibleUnitIngredient", {
+          unit: UNIT_LABEL[unit],
+          name: ingredient.name,
+          targetUnit: UNIT_LABEL[ingredient.purchaseUnit],
+        }),
       };
     }
 
@@ -236,15 +253,24 @@ export async function addComponentAction(
     });
   } else if (type === "recipe") {
     const subRecipe = await db.recipe.findFirst({ where: { id: refId, restaurantId } });
-    if (!subRecipe) return { error: "Sub-recipe not found" };
+    if (!subRecipe) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+      return { error: t("subRecipeNotFound") };
+    }
 
     if (refId === recipeId) {
-      return { error: "A recipe cannot contain itself" };
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+      return { error: t("cannotContainItself") };
     }
 
     if (unitDimension(unit) !== unitDimension(subRecipe.yieldUnit)) {
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
       return {
-        error: `Can't use ${UNIT_LABEL[unit]} for ${subRecipe.name} — its yield is measured in ${UNIT_LABEL[subRecipe.yieldUnit]}. Choose a compatible unit.`,
+        error: t("incompatibleUnitSubRecipe", {
+          unit: UNIT_LABEL[unit],
+          name: subRecipe.name,
+          targetUnit: UNIT_LABEL[subRecipe.yieldUnit],
+        }),
       };
     }
 
@@ -262,14 +288,16 @@ export async function addComponentAction(
     adjacency.set(recipeId, [...(adjacency.get(recipeId) ?? []), refId]);
 
     if (hasCircularDependency(recipeId, (id) => adjacency.get(id) ?? [])) {
-      return { error: "That would create a circular sub-recipe reference" };
+      const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+      return { error: t("circularError") };
     }
 
     await db.recipeComponent.create({
       data: { recipeId, componentRecipeId: subRecipe.id, quantity, unit },
     });
   } else {
-    return { error: "Invalid component" };
+    const t = await getTranslations({ locale: await restaurantLocale(restaurantId), namespace: "recipes" });
+    return { error: t("invalidComponent") };
   }
 
   redirect(`/r/${restaurantId}/recipes/${recipeId}`);

@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { usableCostPerUnit } from "../src/lib/calculations/ingredient";
 
-const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" });
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
 
 const DEMO_EMAIL = "demo@jukai.nyc";
@@ -89,7 +90,8 @@ async function main() {
 
   // Demo financial month from the brief (section 14 / 33). Rent/utilities/etc. are no
   // longer flat columns — they're vendor-tagged expense line items that sum up to the
-  // same totals the brief specifies, demonstrating the per-vendor breakdown.
+  // same totals the brief specifies, demonstrating the per-vendor breakdown. Labor is
+  // itemized by role the same way, also summing to the brief's total.
   const financialMonth = await db.financialMonth.create({
     data: {
       restaurantId,
@@ -97,9 +99,16 @@ async function main() {
       month: 7,
       revenueCents: 8452000,
       foodCostCents: 2468000,
-      laborCostCents: 2662400,
       isClosed: true,
     },
+  });
+
+  await db.laborCostLineItem.createMany({
+    data: [
+      { financialMonthId: financialMonth.id, role: "KITCHEN", amountCents: 1600000 },
+      { financialMonthId: financialMonth.id, role: "FRONT_OF_HOUSE", amountCents: 800000 },
+      { financialMonthId: financialMonth.id, role: "MANAGEMENT", amountCents: 262400 },
+    ],
   });
 
   const landlord = await db.vendor.create({ data: { restaurantId, name: "Midtown Realty Partners" } });

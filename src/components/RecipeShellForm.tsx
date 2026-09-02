@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { UNIT_GROUPS, UNIT_LABEL } from "@/lib/units-display";
 import type { RecipeActionState } from "@/app/(app)/r/[restaurantId]/recipes/actions";
 
@@ -24,12 +25,14 @@ export function RecipeShellForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const t = useTranslations("recipes");
+  const tc = useTranslations("common");
 
   return (
     <form action={formAction} className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-slate-700">
-          Recipe name
+          {t("formName")}
         </label>
         <input
           id="name"
@@ -44,7 +47,7 @@ export function RecipeShellForm({
 
       <div>
         <label htmlFor="categoryName" className="block text-sm font-medium text-slate-700">
-          Category
+          {tc("category")}
         </label>
         <input
           id="categoryName"
@@ -56,10 +59,10 @@ export function RecipeShellForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="yieldQty" className="block text-sm font-medium text-slate-700">
-            Total yield
+            {t("formTotalYield")}
           </label>
           <input
             id="yieldQty"
@@ -75,7 +78,7 @@ export function RecipeShellForm({
         </div>
         <div>
           <label htmlFor="yieldUnit" className="block text-sm font-medium text-slate-700">
-            Yield unit
+            {t("formYieldUnit")}
           </label>
           <select
             id="yieldUnit"
@@ -97,10 +100,10 @@ export function RecipeShellForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="portionSize" className="block text-sm font-medium text-slate-700">
-            Portion size <span className="text-slate-400">(optional)</span>
+            {t("formPortionSize")} <span className="text-slate-400">{tc("optional")}</span>
           </label>
           <input
             id="portionSize"
@@ -115,7 +118,7 @@ export function RecipeShellForm({
         </div>
         <div>
           <label htmlFor="portionCount" className="block text-sm font-medium text-slate-700">
-            Portion count <span className="text-slate-400">(optional)</span>
+            {t("formPortionCount")} <span className="text-slate-400">{tc("optional")}</span>
           </label>
           <input
             id="portionCount"
@@ -129,14 +132,11 @@ export function RecipeShellForm({
           />
         </div>
       </div>
-      <p className="text-xs text-slate-400">
-        Set either portion count or portion size to get a cost-per-portion — leave both blank for prep recipes costed
-        per yield unit only.
-      </p>
+      <p className="text-xs text-slate-400">{t("formPortionHint")}</p>
 
       <label className="flex items-center gap-2 text-sm text-slate-700">
         <input type="checkbox" name="isSubRecipe" defaultChecked={defaults?.isSubRecipe} className="h-4 w-4 rounded border-slate-300" />
-        Usable as a sub-recipe inside other recipes
+        {t("formIsSubRecipe")}
       </label>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -146,7 +146,7 @@ export function RecipeShellForm({
         disabled={pending}
         className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
       >
-        {pending ? "Saving…" : submitLabel}
+        {pending ? tc("saving") : submitLabel}
       </button>
     </form>
   );

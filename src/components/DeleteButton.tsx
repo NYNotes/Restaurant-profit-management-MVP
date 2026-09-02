@@ -11,9 +11,11 @@ const initialState: DeleteActionState = {};
 export function DeleteButton({
   action,
   label = "Delete",
+  pendingLabel = "Deleting…",
 }: {
   action: (prevState: DeleteActionState, formData: FormData) => Promise<DeleteActionState>;
   label?: string;
+  pendingLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
@@ -25,7 +27,7 @@ export function DeleteButton({
           disabled={pending}
           className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
         >
-          {pending ? "Deleting…" : label}
+          {pending ? pendingLabel : label}
         </button>
       </form>
       {state.error && <p className="max-w-xs text-right text-sm text-red-600">{state.error}</p>}

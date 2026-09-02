@@ -42,9 +42,10 @@ next-env.d.ts
 
 /src/generated/prisma
 
-# local SQLite dev database
-/*.db
-/*.db-journal
+# local SQLite dev database (matches at any depth — the file has shown up both at
+# the repo root and under prisma/, and it holds real user data + password hashes)
+*.db
+*.db-journal
 
 # iOS / Xcode (Capacitor)
 ios/App/Pods/

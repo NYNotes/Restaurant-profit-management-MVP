@@ -1,18 +1,15 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { bpToPercentString } from "@/lib/calculations/money";
 import { calculateProfitAndLoss, percentChangeBp, type ProfitAndLossResult } from "@/lib/calculations/profitAndLoss";
 import { currentYearMonth, parseYearMonthParam } from "@/lib/financialMonth";
-import { getFinancialMonthPLInput, EXPENSE_CATEGORY_LABEL, type ExpenseCategory } from "@/lib/expenses";
+import { getFinancialMonthPLInput } from "@/lib/expenses";
+import type { LaborRole } from "@/lib/laborRoles";
 import { ProfitAndLossForm } from "@/components/ProfitAndLossForm";
-import { ExpenseLineItemForm } from "@/components/ExpenseLineItemForm";
-import { saveCoreFinancialsAction, addExpenseLineItemAction, removeExpenseLineItemAction } from "./actions";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+import { LaborCostLineItemForm } from "@/components/LaborCostLineItemForm";
+import { saveCoreFinancialsAction, addLaborCostLineItemAction, removeLaborCostLineItemAction } from "./actions";
 
 function centsToInput(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -30,11 +27,10 @@ export default async function ProfitAndLossPage({
   const current = currentYearMonth();
   const { year, month } = parseYearMonthParam(sp, current);
 
-  const [restaurant, thisMonth, allMonths, vendors] = await Promise.all([
+  const [restaurant, thisMonth, allMonths] = await Promise.all([
     db.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, include: { settings: true } }),
     db.financialMonth.findUnique({ where: { restaurantId_year_month: { restaurantId, year, month } } }),
     db.financialMonth.findMany({ where: { restaurantId }, orderBy: [{ year: "desc" }, { month: "desc" }], select: { year: true, month: true } }),
-    db.vendor.findMany({ where: { restaurantId }, orderBy: { name: "asc" }, select: { name: true } }),
   ]);
 
   const prevDate = new Date(year, month - 2, 1); // month is 1-indexed; -2 lands one month back
@@ -44,24 +40,25 @@ export default async function ProfitAndLossPage({
 
   const currencyCode = restaurant.settings?.currencyCode ?? "USD";
   const language = restaurant.settings?.language ?? "en";
+  const [t, tc, tRole] = await Promise.all([
+    getTranslations({ locale: language, namespace: "profitLoss" }),
+    getTranslations({ locale: language, namespace: "common" }),
+    getTranslations({ locale: language, namespace: "laborRole" }),
+  ]);
 
-  const coreDefaults = thisMonth ?? { revenueCents: 0, foodCostCents: 0, laborCostCents: 0 };
-  const [thisMonthPLInput, previousMonthPLInput, lineItems] = await Promise.all([
+  const coreDefaults = thisMonth ?? { revenueCents: 0, foodCostCents: 0 };
+  const [thisMonthPLInput, previousMonthPLInput, laborLineItems] = await Promise.all([
     getFinancialMonthPLInput(thisMonth ?? { id: "", ...coreDefaults }),
     previousMonth ? getFinancialMonthPLInput(previousMonth) : Promise.resolve(null),
     thisMonth
-      ? db.expenseLineItem.findMany({
-          where: { financialMonthId: thisMonth.id },
-          include: { vendor: { select: { name: true } } },
-          orderBy: [{ category: "asc" }, { createdAt: "desc" }],
-        })
+      ? db.laborCostLineItem.findMany({ where: { financialMonthId: thisMonth.id }, orderBy: [{ role: "asc" }, { createdAt: "desc" }] })
       : Promise.resolve([]),
   ]);
   const pl = calculateProfitAndLoss(thisMonthPLInput);
   const prevPl = previousMonthPLInput ? calculateProfitAndLoss(previousMonthPLInput) : null;
 
   const boundCoreAction = saveCoreFinancialsAction.bind(null, restaurantId);
-  const boundAddExpense = addExpenseLineItemAction.bind(null, restaurantId);
+  const boundAddLabor = addLaborCostLineItemAction.bind(null, restaurantId);
 
   const monthOptions = new Map<string, { year: number; month: number }>();
   monthOptions.set(`${year}-${month}`, { year, month });
@@ -70,21 +67,29 @@ export default async function ProfitAndLossPage({
   const sortedOptions = Array.from(monthOptions.values()).sort((a, b) => b.year - a.year || b.month - a.month);
 
   const lines: { label: string; key: keyof ProfitAndLossResult; bold?: boolean; goodDirection: "up" | "down" }[] = [
-    { label: "Revenue", key: "revenue", bold: true, goodDirection: "up" },
-    { label: "Food Cost", key: "foodCost", goodDirection: "down" },
-    { label: "Labor Cost", key: "laborCost", goodDirection: "down" },
-    { label: "Gross Profit", key: "grossProfit", bold: true, goodDirection: "up" },
-    { label: "Prime Cost", key: "primeCost", goodDirection: "down" },
-    { label: "Operating Expenses", key: "operatingExpenses", goodDirection: "down" },
-    { label: "Operating Profit", key: "operatingProfit", bold: true, goodDirection: "up" },
-    { label: "Net Profit", key: "netProfit", bold: true, goodDirection: "up" },
+    { label: t("lineRevenue"), key: "revenue", bold: true, goodDirection: "up" },
+    { label: t("lineFoodCost"), key: "foodCost", goodDirection: "down" },
+    { label: t("lineLaborCost"), key: "laborCost", goodDirection: "down" },
+    { label: t("lineGrossProfit"), key: "grossProfit", bold: true, goodDirection: "up" },
+    { label: t("linePrimeCost"), key: "primeCost", goodDirection: "down" },
+    { label: t("lineOperatingExpenses"), key: "operatingExpenses", goodDirection: "down" },
+    { label: t("lineOperatingProfit"), key: "operatingProfit", bold: true, goodDirection: "up" },
+    { label: t("lineNetProfit"), key: "netProfit", bold: true, goodDirection: "up" },
   ];
+
+  const monthLabel = (y: number, m: number, format: "long" | "short") =>
+    new Intl.DateTimeFormat(language, { month: format }).format(new Date(y, m - 1, 1));
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Profit &amp; Loss</h1>
-        <div className="flex gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">{t("title")}</h1>
+          <Link href={`/r/${restaurantId}/expenses?year=${year}&month=${month}`} className="text-sm text-slate-500 hover:underline">
+            {t("manageExpenses")}
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {sortedOptions.map((opt) => {
             const active = opt.year === year && opt.month === month;
             return (
@@ -95,10 +100,16 @@ export default async function ProfitAndLossPage({
                   active ? "bg-slate-900 text-white" : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-100"
                 }`}
               >
-                {MONTH_NAMES[opt.month - 1].slice(0, 3)} {opt.year}
+                {monthLabel(opt.year, opt.month, "short")} {opt.year}
               </Link>
             );
           })}
+          <a
+            href={`/r/${restaurantId}/profit-loss/export?year=${year}&month=${month}`}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          >
+            {tc("exportCsv")}
+          </a>
         </div>
       </div>
 
@@ -106,10 +117,10 @@ export default async function ProfitAndLossPage({
         <table className="w-full min-w-[480px] text-left text-sm">
           <thead className="border-b border-slate-200 text-xs font-medium uppercase tracking-wide text-slate-400">
             <tr>
-              <th className="px-6 py-3">Line</th>
-              <th className="px-6 py-3">Amount</th>
-              <th className="px-6 py-3">% of Sales</th>
-              {prevPl && <th className="px-6 py-3">vs Last Month</th>}
+              <th className="px-6 py-3">{t("colLine")}</th>
+              <th className="px-6 py-3">{t("colAmount")}</th>
+              <th className="px-6 py-3">{t("colPercentOfSales")}</th>
+              {prevPl && <th className="px-6 py-3">{t("colVsLastMonth")}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -147,7 +158,7 @@ export default async function ProfitAndLossPage({
       </div>
 
       <h2 className="mt-8 text-lg font-semibold text-slate-900">
-        Revenue, Food Cost &amp; Labor — {MONTH_NAMES[month - 1]} {year}
+        {t("coreFinancialsTitle", { month: `${monthLabel(year, month, "long")} ${year}` })}
       </h2>
       <ProfitAndLossForm
         action={boundCoreAction}
@@ -156,40 +167,35 @@ export default async function ProfitAndLossPage({
         defaults={{
           revenue: centsToInput(coreDefaults.revenueCents),
           foodCost: centsToInput(coreDefaults.foodCostCents),
-          laborCost: centsToInput(coreDefaults.laborCostCents),
         }}
       />
 
-      <h2 className="mt-8 text-lg font-semibold text-slate-900">Vendor Expenses</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Add each bill with its vendor — the category totals above are the sum of these line items.
-      </p>
+      <h2 className="mt-8 text-lg font-semibold text-slate-900">{t("laborTitle")}</h2>
+      <p className="mt-1 text-sm text-slate-500">{t("laborSubtitle")}</p>
 
-      {lineItems.length > 0 && (
+      {laborLineItems.length > 0 && (
         <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs font-medium uppercase tracking-wide text-slate-400">
               <tr>
-                <th className="px-6 py-3">Category</th>
-                <th className="px-6 py-3">Vendor</th>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3">Amount</th>
+                <th className="px-6 py-3">{t("colRole")}</th>
+                <th className="px-6 py-3">{t("colEmployee")}</th>
+                <th className="px-6 py-3">{tc("amount")}</th>
                 <th className="px-6 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {lineItems.map((item) => {
-                const removeAction = removeExpenseLineItemAction.bind(null, restaurantId, item.id, year, month);
+              {laborLineItems.map((item) => {
+                const removeAction = removeLaborCostLineItemAction.bind(null, restaurantId, item.id, year, month);
                 return (
                   <tr key={item.id}>
-                    <td className="px-6 py-3 text-slate-600">{EXPENSE_CATEGORY_LABEL[item.category as ExpenseCategory]}</td>
-                    <td className="px-6 py-3 text-slate-900">{item.vendor?.name ?? "—"}</td>
-                    <td className="px-6 py-3 text-slate-500">{item.description ?? "—"}</td>
+                    <td className="px-6 py-3 text-slate-600">{tRole(item.role as LaborRole)}</td>
+                    <td className="px-6 py-3 text-slate-500">{item.employeeName ?? "—"}</td>
                     <td className="px-6 py-3 font-medium text-slate-900">{formatMoney(item.amountCents, currencyCode, language)}</td>
                     <td className="px-6 py-3 text-right">
                       <form action={removeAction}>
                         <button type="submit" className="text-xs font-medium text-red-600 hover:underline">
-                          Remove
+                          {tc("remove")}
                         </button>
                       </form>
                     </td>
@@ -201,7 +207,7 @@ export default async function ProfitAndLossPage({
         </div>
       )}
 
-      <ExpenseLineItemForm action={boundAddExpense} year={year} month={month} vendorNames={vendors.map((v) => v.name)} />
+      <LaborCostLineItemForm action={boundAddLabor} year={year} month={month} />
     </div>
   );
 }

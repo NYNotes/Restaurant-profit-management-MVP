@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { computeRecipeCost } from "@/lib/recipeCosting";
 import { currentYearMonth } from "@/lib/financialMonth";
@@ -18,12 +19,15 @@ export default async function WhatIfPage({
   ]);
   if (!menuItem) notFound();
 
+  const language = restaurant.settings?.language ?? "en";
+  const t = await getTranslations({ locale: language, namespace: "menuItems" });
+
   if (!menuItem.recipeId) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">What-If Simulator</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{t("whatIfTitle")}</h1>
         <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-500">Assign a recipe to {menuItem.name} first so it has a food cost to simulate against.</p>
+          <p className="text-sm text-slate-500">{t("whatIfNoRecipe", { name: menuItem.name })}</p>
         </div>
       </div>
     );
@@ -43,10 +47,10 @@ export default async function WhatIfPage({
         <Link href={`/r/${restaurantId}/menu-items/${menuItemId}`} className="hover:underline">
           {menuItem.name}
         </Link>{" "}
-        / What-If Simulator
+        / {t("whatIfTitle")}
       </p>
-      <h1 className="mt-1 text-2xl font-semibold text-slate-900">What-If Simulator</h1>
-      <p className="mt-1 text-sm text-slate-500">Test a different selling price without changing this menu item.</p>
+      <h1 className="mt-1 text-2xl font-semibold text-slate-900">{t("whatIfTitle")}</h1>
+      <p className="mt-1 text-sm text-slate-500">{t("whatIfSubtitle")}</p>
 
       <WhatIfSimulator
         menuItemName={menuItem.name}
@@ -54,7 +58,7 @@ export default async function WhatIfPage({
         foodCostCents={cost.costPerPortionCents}
         initialMonthlySalesUnits={monthlyStat?.unitsSold ?? 0}
         currencyCode={restaurant.settings?.currencyCode ?? "USD"}
-        language={restaurant.settings?.language ?? "en"}
+        language={language}
       />
     </div>
   );
