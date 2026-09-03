@@ -9,6 +9,7 @@ import { getFinancialMonthPLInput } from "@/lib/expenses";
 import type { LaborRole } from "@/lib/laborRoles";
 import { ProfitAndLossForm } from "@/components/ProfitAndLossForm";
 import { LaborCostLineItemForm } from "@/components/LaborCostLineItemForm";
+import { ExportCsvButton } from "@/components/ExportCsvButton";
 import { saveCoreFinancialsAction, addLaborCostLineItemAction, removeLaborCostLineItemAction } from "./actions";
 
 function centsToInput(cents: number): string {
@@ -104,12 +105,12 @@ export default async function ProfitAndLossPage({
               </Link>
             );
           })}
-          <a
+          <ExportCsvButton
             href={`/r/${restaurantId}/profit-loss/export?year=${year}&month=${month}`}
+            filename={`profit-loss-${year}-${String(month).padStart(2, "0")}.csv`}
+            label={tc("exportCsv")}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
-            {tc("exportCsv")}
-          </a>
+          />
         </div>
       </div>
 

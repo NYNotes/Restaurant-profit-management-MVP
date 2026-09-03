@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/format";
 import { bpToPercentString } from "@/lib/calculations/money";
 import { currentYearMonth, parseYearMonthParam } from "@/lib/financialMonth";
 import { getReportsData } from "@/lib/reportsData";
+import { ExportCsvButton } from "@/components/ExportCsvButton";
 
 export default async function ReportsPage({
   params,
@@ -58,12 +59,12 @@ export default async function ReportsPage({
               </Link>
             );
           })}
-          <a
+          <ExportCsvButton
             href={`/r/${restaurantId}/reports/export?year=${year}&month=${month}`}
+            filename={`reports-${year}-${String(month).padStart(2, "0")}.csv`}
+            label={tc("exportCsv")}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
-            {tc("exportCsv")}
-          </a>
+          />
         </div>
       </div>
 
