@@ -52,41 +52,63 @@ export function IngredientPresetPicker({
     const name = itemDraft.trim();
     if (!name || !active || busy) return;
     setBusy(true);
-    const created = await addIngredientPresetAction(
-      restaurantId,
-      active.kind === "builtin" ? { kind: "builtin", key: active.key } : { kind: "custom", id: active.id },
-      name,
-    );
-    setBusy(false);
-    if (created) {
-      setCustomPresets((prev) => [...prev, created]);
-      setItemDraft("");
+    try {
+      const created = await addIngredientPresetAction(
+        restaurantId,
+        active.kind === "builtin" ? { kind: "builtin", key: active.key } : { kind: "custom", id: active.id },
+        name,
+      );
+      if (created) {
+        setCustomPresets((prev) => [...prev, created]);
+        setItemDraft("");
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleRemoveItem(id: string) {
+    const removed = customPresets.find((p) => p.id === id);
     setCustomPresets((prev) => prev.filter((p) => p.id !== id));
-    await removeIngredientPresetAction(restaurantId, id);
+    try {
+      await removeIngredientPresetAction(restaurantId, id);
+    } catch {
+      if (removed) setCustomPresets((prev) => [...prev, removed]);
+    }
   }
 
   async function handleAddCategory() {
     const name = categoryDraft.trim();
     if (!name || busy) return;
     setBusy(true);
-    const created = await addIngredientPresetCategoryAction(restaurantId, name);
-    setBusy(false);
-    if (created) {
-      setCustomCategories((prev) => [...prev, created]);
-      setCategoryDraft("");
-      setActive({ kind: "custom", id: created.id });
+    try {
+      const created = await addIngredientPresetCategoryAction(restaurantId, name);
+      if (created) {
+        setCustomCategories((prev) => [...prev, created]);
+        setCategoryDraft("");
+        setActive({ kind: "custom", id: created.id });
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleRemoveCategory(id: string) {
+    const removedCategory = customCategories.find((c) => c.id === id);
+    const removedPresets = customPresets.filter((p) => p.customCategoryId === id);
+    const wasActive = active?.kind === "custom" && active.id === id;
+
     setCustomCategories((prev) => prev.filter((c) => c.id !== id));
     setCustomPresets((prev) => prev.filter((p) => p.customCategoryId !== id));
-    if (active?.kind === "custom" && active.id === id) setActive(null);
-    await removeIngredientPresetCategoryAction(restaurantId, id);
+    if (wasActive) setActive(null);
+
+    try {
+      await removeIngredientPresetCategoryAction(restaurantId, id);
+    } catch {
+      if (removedCategory) setCustomCategories((prev) => [...prev, removedCategory]);
+      setCustomPresets((prev) => [...prev, ...removedPresets]);
+      if (wasActive) setActive({ kind: "custom", id });
+    }
   }
 
   return (
